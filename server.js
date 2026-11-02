@@ -2,10 +2,19 @@
 require("dotenv").config();
 
 const express = require("express");
+const path = require("path");
 const { Client } = require("@notionhq/client");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Configuration
+const CACHE_TTL = 30 * 1000; // 30 seconds
+
+if (!process.env.NOTION_TOKEN || !process.env.NOTION_PAGE_ID) {
+    console.error("Missing NOTION_TOKEN or NOTION_PAGE_ID environment variable.");
+    process.exit(1);
+}
 
 const notion = new Client({
     auth: process.env.NOTION_TOKEN
@@ -31,48 +40,81 @@ const CATEGORIES = [
     }
 ];
 
-// Extract plain text from Notion properties
+// =====================================
+// CACHE
+// =====================================
+
+const categoryCache = new Map();
+
+// =====================================
+// NOTION PROPERTY HELPERS
+// =====================================
+
 function getPlainText(items = []) {
-    return items.map(item => item.plain_text || "").join("");
+    if (!Array.isArray(items)) return "";
+
+    return items
+        .map(item => item.plain_text || item.text?.content || "")
+        .join("");
 }
 
-// Find the database inside a category page
-async function getCategoryDatabase(pageId) {
-    const response = await notion.blocks.children.list({
-        block_id: pageId
-    });
+function getPropertyText(property) {
+    if (!property) return "";
 
-    const databaseBlock = response.results.find(
-        block => block.type === "child_database"
-    );
+    switch (property.type) {
+        case "title":
+            return getPlainText(property.title);
 
-    if (!databaseBlock) {
-        throw new Error(`No database found on page: ${pageId}`);
+        case "rich_text":
+            return getPlainText(property.rich_text);
+
+        case "number":
+            return property.number === null
+                ? ""
+                : String(property.number);
+
+        case "select":
+            return property.select?.name || "";
+
+        case "status":
+            return property.status?.name || "";
+
+        case "checkbox":
+            return String(property.checkbox);
+
+        case "formula": {
+            const formula = property.formula;
+
+            if (!formula) return "";
+
+            if (formula.type === "string") return formula.string || "";
+            if (formula.type === "number") {
+                return formula.number === null ? "" : String(formula.number);
+            }
+            if (formula.type === "boolean") return String(formula.boolean);
+
+            return "";
+        }
+
+        default:
+            return "";
     }
-
-    const database = await notion.databases.retrieve({
-        database_id: databaseBlock.id
-    });
-
-    if (!database.data_sources || !database.data_sources.length) {
-        throw new Error(`No data source found for database: ${databaseBlock.id}`);
-    }
-
-    return database.data_sources[0].id;
 }
 
-// Fetch all entries from a category database
-async function getCategoryEntries(pageId) {
-    const dataSourceId = await getCategoryDatabase(pageId);
+// =====================================
+// NOTION PAGINATION
+// =====================================
 
+async function getAllBlocks(blockId) {
     let results = [];
     let hasMore = true;
-    let startCursor = undefined;
+    let startCursor;
 
     while (hasMore) {
-        const response = await notion.dataSources.query({
-            data_source_id: dataSourceId,
-            start_cursor: startCursor
+        const response = await notion.blocks.children.list({
+            block_id: blockId,
+            page_size: 100,
+            ...(startCursor ? { start_cursor: startCursor } : {})
         });
 
         results.push(...response.results);
@@ -81,76 +123,182 @@ async function getCategoryEntries(pageId) {
         startCursor = response.next_cursor;
     }
 
-    return results.map(page => {
-        const properties = page.properties;
-
-        const imageFile = properties.Image?.files?.[0];
-
-        return {
-            title: getPlainText(
-                properties.Name?.title
-            ),
-
-            rating: getPlainText(
-                properties.Rating?.rich_text
-            ),
-
-            review: getPlainText(
-                properties.Review?.rich_text
-            ),
-
-            image:
-                imageFile?.file?.url ||
-                imageFile?.external?.url ||
-                ""
-        };
-    }).filter(item => item.title.trim() !== "");
+    return results;
 }
 
-// Check Notion connection
+// =====================================
+// FIND CATEGORY DATABASE
+// =====================================
+
+async function getCategoryDatabase(pageId) {
+    const blocks = await getAllBlocks(pageId);
+
+    const databaseBlock = blocks.find(
+        block => block.type === "child_database"
+    );
+
+    if (!databaseBlock) {
+        throw new Error(`No database found on category page: ${pageId}`);
+    }
+
+    const database = await notion.databases.retrieve({
+        database_id: databaseBlock.id
+    });
+
+    if (!database.data_sources?.length) {
+        throw new Error(`No data source found: ${databaseBlock.id}`);
+    }
+
+    return database.data_sources[0].id;
+}
+
+// =====================================
+// FETCH CATEGORY ENTRIES
+// =====================================
+
+async function fetchCategoryEntries(pageId) {
+    const dataSourceId = await getCategoryDatabase(pageId);
+
+    let results = [];
+    let hasMore = true;
+    let startCursor;
+
+    while (hasMore) {
+        const response = await notion.dataSources.query({
+            data_source_id: dataSourceId,
+            page_size: 100,
+            ...(startCursor ? { start_cursor: startCursor } : {})
+        });
+
+        results.push(...response.results);
+
+        hasMore = response.has_more;
+        startCursor = response.next_cursor;
+    }
+
+    return results
+        .map(page => {
+            const properties = page.properties;
+
+            const imageFiles = properties.Image?.files || [];
+            const imageFile = imageFiles[0];
+
+            return {
+                title: getPropertyText(properties.Name),
+                rating: getPropertyText(properties.Rating),
+                review: getPropertyText(properties.Review),
+
+                image:
+                    imageFile?.file?.url ||
+                    imageFile?.external?.url ||
+                    ""
+            };
+        })
+        .filter(item => item.title.trim() !== "");
+}
+
+// =====================================
+// CACHED CATEGORY ENTRIES
+// =====================================
+
+async function getCategoryEntries(pageId) {
+    const cached = categoryCache.get(pageId);
+
+    // Return valid cached data
+    if (cached?.data && cached.expiresAt > Date.now()) {
+        return cached.data;
+    }
+
+    // Reuse an ongoing request
+    if (cached?.promise) {
+        return cached.promise;
+    }
+
+    // Fetch fresh data
+    const promise = fetchCategoryEntries(pageId);
+
+    categoryCache.set(pageId, { promise });
+
+    try {
+        const entries = await promise;
+
+        categoryCache.set(pageId, {
+            data: entries,
+            expiresAt: Date.now() + CACHE_TTL
+        });
+
+        return entries;
+
+    } catch (error) {
+        categoryCache.delete(pageId);
+        throw error;
+    }
+}
+
+// =====================================
+// API ERROR HANDLING
+// =====================================
+
+function handleApiError(res, error, context) {
+    console.error(`[${context}]`, error);
+
+    res.status(500).json({
+        error: "Unable to retrieve data right now. Please try again shortly."
+    });
+}
+
+// Prevent browser caching of API responses
+app.use("/api", (req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    next();
+});
+
+// =====================================
+// NOTION CONNECTION CHECK
+// =====================================
+
 app.get("/api/notion-check", async (req, res) => {
     try {
-        const page = await notion.pages.retrieve({
+        await notion.pages.retrieve({
             page_id: process.env.NOTION_PAGE_ID
         });
 
         res.json({
             connected: true,
-            message: "Notion connected successfully!",
-            page: page
+            message: "Notion connected successfully!"
         });
 
     } catch (error) {
-        console.error(error);
-
-        res.status(500).json({
-            connected: false,
-            message: error.message
-        });
+        handleApiError(res, error, "Notion connection check");
     }
 });
 
-// Homepage
+// =====================================
+// WEBSITE FILES
+// =====================================
+
 app.get(["/", "/index.html"], (req, res) => {
-    res.sendFile(__dirname + "/index.html");
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
 app.get("/style.css", (req, res) => {
-    res.sendFile(__dirname + "/style.css");
+    res.sendFile(path.join(__dirname, "style.css"));
 });
 
-app.use("/stories", express.static(__dirname + "/stories"));
-app.use("/images", express.static(__dirname + "/images"));
+app.use("/stories", express.static(path.join(__dirname, "stories")));
+app.use("/images", express.static(path.join(__dirname, "images")));
 
-// Get category names
+// =====================================
+// CATEGORY LIST
+// =====================================
+
 app.get("/api/categories", async (req, res) => {
     try {
-        const response = await notion.blocks.children.list({
-            block_id: process.env.NOTION_PAGE_ID
-        });
+        const blocks = await getAllBlocks(process.env.NOTION_PAGE_ID);
 
-        const categories = response.results
+        const categories = blocks
             .filter(block => block.type === "child_page")
+            .filter(block => CATEGORIES.some(category => category.id === block.id))
             .map(block => ({
                 name: block.child_page.title,
                 id: block.id
@@ -159,88 +307,89 @@ app.get("/api/categories", async (req, res) => {
         res.json(categories);
 
     } catch (error) {
-        console.error(error);
-
-        res.status(500).json({
-            error: error.message
-        });
+        handleApiError(res, error, "Categories");
     }
 });
 
-// Get entries for a category
+// =====================================
+// CATEGORY ENTRIES
+// =====================================
+
 app.get("/api/category/:id", async (req, res) => {
     try {
-        const entries = await getCategoryEntries(
-            req.params.id
+        const category = CATEGORIES.find(
+            item => item.id === req.params.id
         );
+
+        if (!category) {
+            return res.status(404).json({
+                error: "Category not found."
+            });
+        }
+
+        const entries = await getCategoryEntries(category.id);
 
         res.json(entries);
 
     } catch (error) {
-        console.error(error);
-
-        res.status(500).json({
-            error: error.message
-        });
+        handleApiError(res, error, "Category entries");
     }
 });
 
-// Homepage statistics
+// =====================================
+// HOMEPAGE STATISTICS
+// =====================================
+
 app.get("/api/stats", async (req, res) => {
     try {
-        let total = 0;
+        const allEntries = await Promise.all(
+            CATEGORIES.map(category =>
+                getCategoryEntries(category.id)
+            )
+        );
 
-        for (const category of CATEGORIES) {
-            const entries = await getCategoryEntries(
-                category.id
-            );
-
-            total += entries.length;
-        }
+        const total = allEntries.reduce(
+            (sum, entries) => sum + entries.length,
+            0
+        );
 
         res.json({ total });
 
     } catch (error) {
-        console.error(error);
-
-        res.status(500).json({
-            error: error.message
-        });
+        handleApiError(res, error, "Homepage statistics");
     }
 });
 
-// Homepage highlights
+// =====================================
+// HOMEPAGE HIGHLIGHTS
+// =====================================
+
 app.get("/api/highlights", async (req, res) => {
     try {
-        const highlights = [];
+        const categoryEntries = await Promise.all(
+            CATEGORIES.map(async category => {
+                const entries = await getCategoryEntries(category.id);
 
-        for (const category of CATEGORIES) {
-            const entries = await getCategoryEntries(
-                category.id
-            );
+                return entries.map(item => ({
+                    ...item,
+                    category: category.name
+                }));
+            })
+        );
 
-            const categoryEntries = entries.map(item => ({
-                ...item,
-                category: category.name
-            }));
-
-            highlights.push(...categoryEntries);
-        }
+        const highlights = categoryEntries.flat();
 
         res.json(highlights);
 
     } catch (error) {
-        console.error(error);
-
-        res.status(500).json({
-            error: error.message
-        });
+        handleApiError(res, error, "Homepage highlights");
     }
 });
 
-// Start server
+// =====================================
+// START SERVER
+// =====================================
+
 app.listen(PORT, () => {
-    console.log(
-        `Website running at http://localhost:${PORT}`
-    );
+    console.log(`Website running on port ${PORT}`);
 });
