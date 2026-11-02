@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movies — Archive.</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+    <nav class="topbar">
+        <a href="../index.html" class="logo">Archive.</a>
+
+        <div class="nav-links">
+            <a href="music.html">Music</a>
+            <a href="movies.html">Movies</a>
+            <a href="games.html">Games</a>
+            <a href="food.html">Food</a>
+
+            <button id="theme-toggle" class="theme-toggle" aria-label="Switch theme">
+    <svg class="moon-icon" viewBox="0 0 24 24">
+        <path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/>
+    </svg>
+    <svg class="sun-icon" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2 M12 20v2 M4.93 4.93l1.42 1.42 M17.65 17.65l1.42 1.42 M2 12h2 M20 12h2 M4.93 19.07l1.42-1.42 M17.65 6.35l1.42-1.42"/>
+    </svg>
+</button>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <p class="eyebrow">THE COLLECTION</p>
+        <h1>Movies.</h1>
+        <p class="intro">Stories watched. Moments remembered.</p>
+    </header>
+
+    <main class="movie-gallery" id="movies-gallery">
+        <p>Loading movies...</p>
+    </main>
+
+    <script src="movies.js"></script>
+
+    <script>
+        // THEME SWITCHER
+
+const themeButton = document.getElementById("theme-toggle");
+
+// Load saved theme
+const savedTheme = localStorage.getItem("archive-theme");
+
+if (savedTheme === "dark") {
+    document.body.classList.add("dark-theme");
+}
+
+// Toggle theme and save choice
+themeButton.addEventListener("click", () => {
+    document.body.classList.toggle("dark-theme");
+
+    const isDark = document.body.classList.contains("dark-theme");
+
+    localStorage.setItem(
+        "archive-theme",
+        isDark ? "dark" : "light"
+    );
+});
+    </script>
+
+</body>
+</html>
