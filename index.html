@@ -17,174 +17,213 @@
             <a href="stories/movies.html">Movies</a>
             <a href="stories/games.html">Games</a>
             <a href="stories/food.html">Food</a>
+
             <button id="theme-toggle" class="theme-toggle" aria-label="Switch theme">
-    <svg class="moon-icon" viewBox="0 0 24 24">
-        <path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/>
-    </svg>
-    <svg class="sun-icon" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="4"/>
-        <path d="M12 2v2 M12 20v2 M4.93 4.93l1.42 1.42 M17.65 17.65l1.42 1.42 M2 12h2 M20 12h2 M4.93 19.07l1.42-1.42 M17.65 6.35l1.42-1.42"/>
-    </svg>
-</button>
+                <svg class="moon-icon" viewBox="0 0 24 24">
+                    <path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/>
+                </svg>
+
+                <svg class="sun-icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="4"/>
+                    <path d="M12 2v2 M12 20v2 M4.93 4.93l1.42 1.42 M17.65 17.65l1.42 1.42 M2 12h2 M20 12h2 M4.93 19.07l1.42-1.42 M17.65 6.35l1.42-1.42"/>
+                </svg>
+            </button>
         </div>
     </nav>
 
     <header class="hero">
         <p class="eyebrow">MY PERSONAL ARCHIVE</p>
         <h1>Life, in little pieces.</h1>
+
         <p class="intro">
             A collection of things I've watched, played, listened to
             and experienced.
         </p>
+
         <p class="entry-count">
-    <span id="total-entries">—</span> entries collected
-</p>
+            <span id="total-entries">—</span> entries collected
+        </p>
     </header>
 
-   <main class="showcase">
+    <main class="showcase">
 
-    <section class="showcase-card music-showcase">
-        <span class="showcase-label">01 — LISTEN</span>
-        <h2>Music.</h2>
-        <p>Songs that stayed with me.</p>
-        <div class="showcase-art">♫</div>
-        <div class="showcase-highlights" id="music-highlights">
-            Loading music...
-        </div>
-        <a href="stories/music.html">Explore Music ↗</a>
-    </section>
+        <section class="showcase-card music-showcase">
+            <span class="showcase-label">01 — LISTEN</span>
+            <h2>Music.</h2>
+            <p>Songs that stayed with me.</p>
+            <div class="showcase-art">♫</div>
+            <div class="showcase-highlights" id="music-highlights">
+                Loading music...
+            </div>
+            <a href="stories/music.html">Explore Music ↗</a>
+        </section>
 
-    <section class="showcase-card movies-showcase">
-        <span class="showcase-label">02 — WATCH</span>
-        <h2>Movies.</h2>
-        <p>Stories worth remembering.</p>
-        <div class="showcase-art">🎬</div>
-        <div class="showcase-highlights" id="movies-highlights">
-            Loading movies...
-        </div>
-        <a href="stories/movies.html">Explore Movies ↗</a>
-    </section>
+        <section class="showcase-card movies-showcase">
+            <span class="showcase-label">02 — WATCH</span>
+            <h2>Movies.</h2>
+            <p>Stories worth remembering.</p>
+            <div class="showcase-art">🎬</div>
+            <div class="showcase-highlights" id="movies-highlights">
+                Loading movies...
+            </div>
+            <a href="stories/movies.html">Explore Movies ↗</a>
+        </section>
 
-    <section class="showcase-card games-showcase">
-        <span class="showcase-label">03 — PLAY</span>
-        <h2>Games.</h2>
-        <p>Worlds I've explored.</p>
-        <div class="showcase-art">🎮</div>
-        <div class="showcase-highlights" id="games-highlights">
-            Loading games...
-        </div>
-        <a href="stories/games.html">Explore Games ↗</a>
-    </section>
+        <section class="showcase-card games-showcase">
+            <span class="showcase-label">03 — PLAY</span>
+            <h2>Games.</h2>
+            <p>Worlds I've explored.</p>
+            <div class="showcase-art">🎮</div>
+            <div class="showcase-highlights" id="games-highlights">
+                Loading games...
+            </div>
+            <a href="stories/games.html">Explore Games ↗</a>
+        </section>
 
-    <section class="showcase-card food-showcase">
-        <span class="showcase-label">04 — TASTE</span>
-        <h2>Food.</h2>
-        <p>Things I've tried.</p>
-        <div class="showcase-art">🍜</div>
-        <div class="showcase-highlights" id="food-highlights">
-            Loading food...
-        </div>
-        <a href="stories/food.html">Explore Food ↗</a>
-    </section>
+        <section class="showcase-card food-showcase">
+            <span class="showcase-label">04 — TASTE</span>
+            <h2>Food.</h2>
+            <p>Things I've tried.</p>
+            <div class="showcase-art">🍜</div>
+            <div class="showcase-highlights" id="food-highlights">
+                Loading food...
+            </div>
+            <a href="stories/food.html">Explore Food ↗</a>
+        </section>
 
-</main>
+    </main>
 
     <footer>
         Made of memories. © 2026
     </footer>
 
-<script>
-    async function loadStats() {
-        try {
-            const response = await fetch("/api/stats");
-            const data = await response.json();
-            document.getElementById("total-entries").textContent = data.total;
-        } catch (error) {
-            console.error(error);
-        }
-    }
+    <script>
+        // LOAD TOTAL ENTRIES
 
-    async function loadHighlights() {
-        try {
-            const response = await fetch("/api/highlights");
-            const entries = await response.json();
+        async function loadStats() {
+            try {
+                const response = await fetch("/api/stats");
 
-            const categories = {
-                Music: "music-highlights",
-                Movies: "movies-highlights",
-                Games: "games-highlights",
-                Food: "food-highlights"
-            };
-
-            for (const [category, elementId] of Object.entries(categories)) {
-                const container = document.getElementById(elementId);
-
-                const items = entries.filter(
-                    item => item.category === category
-                );
-
-                container.innerHTML = "";
-
-                if (items.length === 0) {
-                    container.textContent = "No entries yet.";
-                    continue;
+                if (!response.ok) {
+                    throw new Error("Failed to load statistics");
                 }
 
-                const track = document.createElement("div");
-                track.className = "showcase-track";
+                const data = await response.json();
 
-                const createCard = (item) => {
-                    const card = document.createElement("div");
-                    card.className = "showcase-entry";
+                document.getElementById("total-entries").textContent =
+                    data.total ?? 0;
 
-                    const title = document.createElement("strong");
-                    title.textContent = item.title;
+            } catch (error) {
+                console.error("Could not load statistics:", error);
+            }
+        }
 
-                    const rating = document.createElement("span");
-                    rating.textContent = `★ ${item.rating}/10`;
 
-                    card.append(title, rating);
-                    return card;
+        // LOAD CATEGORY HIGHLIGHTS
+
+        async function loadHighlights() {
+            try {
+                const response = await fetch("/api/highlights");
+
+                if (!response.ok) {
+                    throw new Error("Failed to load highlights");
+                }
+
+                const entries = await response.json();
+
+                const categories = {
+                    Music: "music-highlights",
+                    Movies: "movies-highlights",
+                    Games: "games-highlights",
+                    Food: "food-highlights"
                 };
 
-                items.forEach(item => track.appendChild(createCard(item)));
-                items.forEach(item => track.appendChild(createCard(item)));
+                for (const [category, elementId] of Object.entries(categories)) {
 
-                container.appendChild(track);
+                    const container = document.getElementById(elementId);
+
+                    if (!container) continue;
+
+                    const items = entries.filter(
+                        item => item.category === category
+                    );
+
+                    container.innerHTML = "";
+
+                    if (items.length === 0) {
+                        container.textContent = "No entries yet.";
+                        continue;
+                    }
+
+                    const track = document.createElement("div");
+                    track.className = "showcase-track";
+
+                    const createCard = (item) => {
+                        const card = document.createElement("div");
+                        card.className = "showcase-entry";
+
+                        const title = document.createElement("strong");
+                        title.textContent = item.title;
+
+                        const rating = document.createElement("span");
+                        rating.textContent = `★ ${item.rating}/10`;
+
+                        card.append(title, rating);
+
+                        return card;
+                    };
+
+                    items.forEach(item => {
+                        track.appendChild(createCard(item));
+                    });
+
+                    items.forEach(item => {
+                        track.appendChild(createCard(item));
+                    });
+
+                    container.appendChild(track);
+                }
+
+            } catch (error) {
+                console.error("Could not load highlights:", error);
             }
-
-        } catch (error) {
-            console.error("Could not load highlights:", error);
         }
-    }
 
-    loadStats();
-    loadHighlights();
 
-    setInterval(loadStats, 30000);
-    setInterval(loadHighlights, 60000);
-    // THEME SWITCHER
+        // REFRESH DATA
 
-const themeButton = document.getElementById("theme-toggle");
+        loadStats();
+        loadHighlights();
 
-// Load saved theme
-const savedTheme = localStorage.getItem("archive-theme");
+        setInterval(loadStats, 30000);
+        setInterval(loadHighlights, 60000);
 
-if (savedTheme === "dark") {
-    document.body.classList.add("dark-theme");
-}
 
-// Toggle theme and save choice
-themeButton.addEventListener("click", () => {
-    document.body.classList.toggle("dark-theme");
+        // THEME SWITCHER
 
-    const isDark = document.body.classList.contains("dark-theme");
+        const themeButton = document.getElementById("theme-toggle");
 
-    localStorage.setItem(
-        "archive-theme",
-        isDark ? "dark" : "light"
-    );
-});
-</script>
+        const savedTheme = localStorage.getItem("archive-theme");
+
+        if (savedTheme === "dark") {
+            document.body.classList.add("dark-theme");
+        }
+
+        themeButton.addEventListener("click", () => {
+
+            document.body.classList.toggle("dark-theme");
+
+            const isDark =
+                document.body.classList.contains("dark-theme");
+
+            localStorage.setItem(
+                "archive-theme",
+                isDark ? "dark" : "light"
+            );
+
+        });
+
+    </script>
+
 </body>
 </html>
